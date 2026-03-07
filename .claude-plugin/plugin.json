@@ -1,0 +1,7 @@
+{
+  "name": "claude-flashcards",
+  "description": "Generate spaced-repetition flashcards from Claude Code sessions. Captures what you learned while pairing with Claude so you actually retain it.",
+  "author": {
+    "name": "Abdullah Mobeen"
+  }
+}

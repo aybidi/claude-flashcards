@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""Flashcard data layer for claude-flashcards plugin."""
+
+import json
+import sys
+import uuid
+from pathlib import Path
+from datetime import date, timedelta
+
+STORE_DIR = Path.home() / ".claude-flashcards"
+STORE_FILE = STORE_DIR / "cards.json"
+
+
+def load():
+    if not STORE_FILE.exists():
+        return {"version": 1, "cards": []}
+    with open(STORE_FILE) as f:
+        return json.load(f)
+
+
+def save(data):
+    STORE_DIR.mkdir(parents=True, exist_ok=True)
+    with open(STORE_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def cmd_add():
+    """Read JSON cards from stdin and add them."""
+    incoming = json.load(sys.stdin)
+    cards = incoming if isinstance(incoming, list) else incoming.get("cards", [incoming])
+
+    data = load()
+    existing_ids = {c["id"] for c in data["cards"]}
+    today = date.today().isoformat()
+
+    added = 0
+    for card in cards:
+        if "id" not in card:
+            card["id"] = uuid.uuid4().hex[:8]
+        if card["id"] not in existing_ids:
+            card.setdefault("sm2", {
+                "repetitions": 0,
+                "ease_factor": 2.5,
+                "interval": 1,
+                "next_review": today
+            })
+            card.setdefault("created", today)
+            data["cards"].append(card)
+            existing_ids.add(card["id"])
+            added += 1
+
+    save(data)
+    print(json.dumps({"added": added, "total": len(data["cards"])}))
+
+
+def cmd_list_due():
+    """Print due cards as JSON."""
+    data = load()
+    today = date.today().isoformat()
+    due = [c for c in data["cards"] if c.get("sm2", {}).get("next_review", today) <= today]
+    print(json.dumps({"due": due, "total": len(data["cards"])}))
+
+
+def cmd_rate():
+    """Rate a card. Args: card_id quality(0-3)"""
+    if len(sys.argv) < 4:
+        print("Usage: flashcards rate <card_id> <quality 0-3>", file=sys.stderr)
+        sys.exit(1)
+
+    card_id = sys.argv[2]
+    quality = int(sys.argv[3])
+
+    data = load()
+    card = next((c for c in data["cards"] if c["id"] == card_id), None)
+    if not card:
+        print(json.dumps({"error": f"Card {card_id} not found"}))
+        sys.exit(1)
+
+    # SM-2 algorithm: map 0-3 button to SM-2 quality scale
+    q = [0, 2, 4, 5][quality]
+    sm2 = card.get("sm2", {"repetitions": 0, "ease_factor": 2.5, "interval": 1})
+
+    reps = sm2.get("repetitions", 0)
+    ef = sm2.get("ease_factor", 2.5)
+    interval = sm2.get("interval", 1)
+
+    if q < 3:
+        reps = 0
+        interval = 1
+    else:
+        if reps == 0:
+            interval = 1
+        elif reps == 1:
+            interval = 6
+        else:
+            interval = round(interval * ef)
+        reps += 1
+
+    ef = ef + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
+    if ef < 1.3:
+        ef = 1.3
+
+    next_review = (date.today() + timedelta(days=interval)).isoformat()
+
+    card["sm2"] = {
+        "repetitions": reps,
+        "ease_factor": round(ef, 2),
+        "interval": interval,
+        "next_review": next_review
+    }
+
+    save(data)
+    print(json.dumps({"ok": True, "next_review": next_review, "interval": interval}))
+
+
+def cmd_stats():
+    """Print stats as JSON."""
+    data = load()
+    cards = data.get("cards", [])
+    today = date.today().isoformat()
+
+    total = len(cards)
+    due = sum(1 for c in cards if c.get("sm2", {}).get("next_review", today) <= today)
+    mature = sum(1 for c in cards if c.get("sm2", {}).get("interval", 0) >= 21)
+
+    by_category = {}
+    by_repo = {}
+    for c in cards:
+        cat = c.get("category", "uncategorized")
+        by_category[cat] = by_category.get(cat, 0) + 1
+        repo = c.get("source_repo", "unknown")
+        by_repo[repo] = by_repo.get(repo, 0) + 1
+
+    # Find next review date if nothing due today
+    next_review = None
+    if due == 0 and cards:
+        future = [c["sm2"]["next_review"] for c in cards if c.get("sm2", {}).get("next_review", "") > today]
+        if future:
+            next_review = min(future)
+
+    print(json.dumps({
+        "total": total,
+        "due": due,
+        "mature": mature,
+        "learning": total - mature,
+        "by_category": by_category,
+        "by_repo": by_repo,
+        "next_review": next_review
+    }))
+
+
+def cmd_delete():
+    """Delete a card by ID."""
+    if len(sys.argv) < 3:
+        print("Usage: flashcards delete <card_id>", file=sys.stderr)
+        sys.exit(1)
+
+    card_id = sys.argv[2]
+    data = load()
+    before = len(data["cards"])
+    data["cards"] = [c for c in data["cards"] if c["id"] != card_id]
+    save(data)
+    print(json.dumps({"deleted": before - len(data["cards"]), "total": len(data["cards"])}))
+
+
+def main():
+    cmds = {
+        "add": cmd_add,
+        "list-due": cmd_list_due,
+        "rate": cmd_rate,
+        "stats": cmd_stats,
+        "delete": cmd_delete,
+    }
+
+    cmd = sys.argv[1] if len(sys.argv) > 1 else None
+    if cmd in cmds:
+        cmds[cmd]()
+    else:
+        print(f"Usage: flashcards <{'|'.join(cmds.keys())}>", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
