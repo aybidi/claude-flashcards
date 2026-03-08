@@ -12,6 +12,10 @@ The problem: you pair with Claude Code across different repos, solve hard proble
 
 Two commands. No external dependencies beyond Python 3.
 
+## Demo
+
+https://github.com/user-attachments/assets/5db19139-8a21-4a80-8e5b-74131212f1e5
+
 ## Install
 
 Add the marketplace and install the plugin:
