@@ -19,6 +19,7 @@ Add the marketplace and install the plugin:
 ```
 /plugin marketplace add aybidi/claude-flashcards
 /plugin install claude-flashcards@claude-flashcards
+/reload-plugins
 ```
 
 For local development/testing:
