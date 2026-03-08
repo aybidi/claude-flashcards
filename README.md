@@ -6,21 +6,20 @@ The problem: you pair with Claude Code across different repos, solve hard proble
 
 ## How it works
 
-**Generate** -- after a coding session, run `/flashcards`. Claude analyzes your conversation, identifies the key things you learned, and creates flashcards.
+**Generate** -- after a coding session, run `/claude-flashcards:generate`. Claude analyzes your conversation, identifies the key things you learned, and creates flashcards.
 
-**Review** -- run `/review` and Claude walks you through your due cards with spaced repetition (SM-2 algorithm). Cards you struggle with come back sooner. Cards you know well space out to weeks, then months.
+**Review** -- run `/claude-flashcards:review`. Claude shows your due cards grouped by topic, you pick a group, then walk through them with active recall and spaced repetition (SM-2 algorithm).
 
-That's it. Two commands.
+Two commands. No external dependencies beyond Python 3.
 
 ## Install
 
-Clone this repo into your Claude Code plugins directory:
+For development/testing, launch Claude Code with the plugin directory:
 
 ```bash
-git clone https://github.com/abdullahmobeen/claude-flashcards.git ~/.claude/plugins/claude-flashcards
+git clone https://github.com/aybidi/claude-flashcards.git
+claude --plugin-dir ./claude-flashcards
 ```
-
-Restart Claude Code. You should see `/flashcards` and `/review` in `/help`.
 
 **Requirements:** Python 3.6+ (no external dependencies).
 
@@ -31,7 +30,7 @@ Restart Claude Code. You should see `/flashcards` and `/review` in `/help`.
 After working on something with Claude -- debugging an issue, learning a new API, making architecture decisions -- run:
 
 ```
-/flashcards
+/claude-flashcards:generate
 ```
 
 Claude reviews the conversation and generates 3-8 flashcards like:
@@ -51,27 +50,29 @@ Here are 4 cards from this session:
       instead of 0.0.0.0. Containers need to listen on all
       interfaces for port mapping to work.
 
-3. [pattern] How do you retry a failed HTTP request with
-   exponential backoff in Python?
-   -> Use a loop with sleep(base * 2**attempt), capped at a
-      max delay. Add jitter (random offset) to prevent
-      thundering herd when multiple clients retry together.
-
-4. [tool] How do you find which process is using a specific
-   port on macOS?
-   -> lsof -i :<port> shows the process. Use -P to show port
-      numbers instead of names, and -n to skip DNS resolution.
-
 Saved 4 cards (1 concept, 1 debugging, 1 pattern, 1 tool).
 ```
 
 ### Review due cards
 
 ```
-/review
+/claude-flashcards:review
 ```
 
-Claude presents your due cards one at a time:
+Claude shows your due cards grouped by topic or repo:
+
+```
+28 cards due for review:
+
+1. llama.cpp (18 cards)
+2. Claude Agent SDK (3 cards)
+3. Claude API (5 cards)
+a. All (28 cards)
+
+Pick a group:
+```
+
+After you pick, Claude walks through cards one at a time using active recall -- you type your answer from memory, then Claude reveals the correct answer and evaluates your response:
 
 ```
 Card 1/3  |  debugging  |  my-api
@@ -79,20 +80,23 @@ Card 1/3  |  debugging  |  my-api
 Q: What causes "ECONNREFUSED" when connecting to a Docker
    container's exposed port?
 
-Say "show" to reveal the answer.
+Type your answer:
 ```
 
-You think, then say "show":
+After you answer:
 
 ```
-A: The service inside the container is binding to 127.0.0.1
-   instead of 0.0.0.0. Containers need to listen on all
-   interfaces for port mapping to work.
+Your answer: something about binding to localhost
 
-How did you do?  (1) Again  (2) Hard  (3) Good  (4) Easy
+Correct answer: The service inside the container is binding to
+127.0.0.1 instead of 0.0.0.0. Containers need to listen on all
+interfaces for port mapping to work.
+
+You got the right idea but missed the 0.0.0.0 detail.
+Suggested rating: (2) Hard
+
+Accept, or pick: (1) Again  (2) Hard  (3) Good  (4) Easy
 ```
-
-Rate yourself. If you say "Again", Claude re-explains the concept before moving on.
 
 ## What makes good flashcards
 
@@ -107,14 +111,14 @@ Cards are categorized as: `concept`, `pattern`, `debugging`, `tool`, or `archite
 
 ## Where cards are stored
 
-Cards live in `~/.claude-flashcards/cards.json`. This is global -- cards from all repos accumulate in one place, tagged with their source repo so you can see where each insight came from.
+Cards live in `~/.claude-flashcards/cards.json`. This is global -- cards from all repos accumulate in one place, tagged with their source repo and optional topic so you can review by group.
 
 ## How spaced repetition works
 
 The plugin uses the [SM-2 algorithm](https://en.wikipedia.org/wiki/SuperMemo#Description_of_SM-2_algorithm):
 
-- New cards start with a 1-day interval
-- "Good" ratings increase the interval (1 day -> 6 days -> ~15 days -> ...)
+- New cards rated "Good" start at 1 day, "Easy" starts at 4 days
+- Subsequent "Good" ratings increase the interval (1 -> 6 -> ~15 -> ...)
 - "Again" resets the card to 1 day
 - Cards with 21+ day intervals are considered "mature"
 
@@ -124,12 +128,12 @@ The result: you review new/hard cards frequently and easy cards rarely, maximizi
 
 ```
 claude-flashcards/
-  .claude-plugin/plugin.json    -- plugin metadata
-  commands/flashcards.md        -- /flashcards command
-  commands/review.md            -- /review command
-  skills/session-flashcards/    -- skill: teaches Claude card generation
+  .claude-plugin/plugin.json       -- plugin metadata
+  commands/generate.md             -- /claude-flashcards:generate
+  commands/review.md               -- /claude-flashcards:review
+  skills/session-flashcards/       -- card quality and review guidelines
     SKILL.md
-  scripts/flashcards            -- Python data layer (~130 lines)
+  scripts/flashcards               -- Python data layer (~180 lines)
 ```
 
 ## License
