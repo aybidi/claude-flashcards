@@ -54,11 +54,30 @@ def cmd_add():
 
 
 def cmd_list_due():
-    """Print due cards as JSON."""
+    """Print due cards as JSON. Optional: list-due [limit]"""
     data = load()
     today = date.today().isoformat()
     due = [c for c in data["cards"] if c.get("sm2", {}).get("next_review", today) <= today]
-    print(json.dumps({"due": due, "total": len(data["cards"])}))
+
+    # Optional limit argument
+    limit = int(sys.argv[2]) if len(sys.argv) > 2 else None
+    total_due = len(due)
+    if limit and limit < total_due:
+        due = due[:limit]
+
+    # Only send fields needed for review (strip verbose fields to save tokens)
+    slim = []
+    for c in due:
+        slim.append({
+            "id": c["id"],
+            "question": c["question"],
+            "answer": c["answer"],
+            "category": c.get("category", ""),
+            "source_repo": c.get("source_repo", ""),
+            "topic": c.get("topic", ""),
+        })
+
+    print(json.dumps({"due": slim, "due_total": total_due, "total": len(data["cards"])}))
 
 
 def cmd_rate():
@@ -85,11 +104,14 @@ def cmd_rate():
     interval = sm2.get("interval", 1)
 
     if q < 3:
+        # Failed: reset to beginning
         reps = 0
         interval = 1
     else:
         if reps == 0:
-            interval = 1
+            # First successful review: scale by quality
+            # Easy=4 days, Good=1 day, Hard stays at 1
+            interval = {4: 1, 5: 4}.get(q, 1)
         elif reps == 1:
             interval = 6
         else:
