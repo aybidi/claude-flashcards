@@ -14,7 +14,14 @@ Two commands. No external dependencies beyond Python 3.
 
 ## Install
 
-For development/testing, launch Claude Code with the plugin directory:
+Add the marketplace and install the plugin:
+
+```
+/plugin marketplace add aybidi/claude-flashcards
+/plugin install claude-flashcards@claude-flashcards
+```
+
+For local development/testing:
 
 ```bash
 git clone https://github.com/aybidi/claude-flashcards.git
@@ -128,11 +135,12 @@ The result: you review new/hard cards frequently and easy cards rarely, maximizi
 
 ```
 claude-flashcards/
-  .claude-plugin/plugin.json       -- plugin metadata
-  commands/generate.md             -- /claude-flashcards:generate
-  commands/review.md               -- /claude-flashcards:review
-  skills/session-flashcards/       -- card quality and review guidelines
-    SKILL.md
+  .claude-plugin/
+    plugin.json                    -- plugin metadata
+    marketplace.json               -- marketplace catalog
+  commands/
+    generate.md                    -- /claude-flashcards:generate
+    review.md                      -- /claude-flashcards:review
   scripts/flashcards               -- Python data layer (~180 lines)
 ```
 

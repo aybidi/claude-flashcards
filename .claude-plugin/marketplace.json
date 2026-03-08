@@ -1,0 +1,17 @@
+{
+  "name": "claude-flashcards",
+  "owner": {
+    "name": "Abdullah Mobeen"
+  },
+  "metadata": {
+    "description": "Spaced-repetition flashcards from Claude Code sessions"
+  },
+  "plugins": [
+    {
+      "name": "claude-flashcards",
+      "source": "./",
+      "description": "Generate spaced-repetition flashcards from Claude Code sessions. Captures what you learned while pairing with Claude so you actually retain it.",
+      "version": "1.0.0"
+    }
+  ]
+}
